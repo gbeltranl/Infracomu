@@ -8,40 +8,18 @@ from _thread import *
 from multiprocessing.connection import wait
 from threading import Event, Thread
 
-port = 12345
+port = 12346
 BUFFER_SIZE = 1024 # send 1024 bytes each time step
-
-
-# thread function
-def clientOperation(event,socket,id,numClientes):
-    md5 = hashlib.md5()
-    event.clear() # Set event state to 'False'
-    event.wait()
-    file = open("ArchivosRecibidos/Cliente"+str(id)+"-Prueba"+str(numClientes), "wb")
-
-    while True:
-            # read 1024 bytes from the socket (receive)
-            bytes_read = socket.recv(BUFFER_SIZE)
-            if '<SEP>'.encode() in bytes_read:
-                received_hash = bytes_read.decode().split('<SEP>')[1]
-                print("Received hash", received_hash) 
-                
-                break
-            if not bytes_read:
-                
-                break
-            # write to the file the bytes we just received
-            md5.update(bytes_read)
-            file.write(bytes_read)
-    file.close()
-    print("[CLIENT {0}]:Received file's calculated hash: {1}".format(id,md5.hexdigest()))
-    #s.close()
- 
-
+clientesConectados = 0
 
 def serverOperation(connection, event, filename):
     file = open(filename, "rb")
     md5 = hashlib.md5()
+
+    # Receive ok from client
+    print("suma clientes")
+    global clientesConectados
+    clientesConectados +=1
     event.wait()
     
     #c.send(calculated_hash.encode())
@@ -59,6 +37,7 @@ def serverOperation(connection, event, filename):
     print("File's hash", calculated_hash)
     connection.send('<SEP>'.encode())
     connection.send(calculated_hash.encode())
+
 
 def MainServerThread(event,numArchivo,numClientes):
     # the name of file we want to send, make sure it exists
@@ -83,15 +62,19 @@ def MainServerThread(event,numArchivo,numClientes):
     socketClient.listen(5)
     print("Socket escuchando")
  
-    clientesConectados = 0
+    global clientesConectados
     while True:
+        print(clientesConectados)
         if clientesConectados < numClientes:
             # establish connection with client
             connection, addr = socketClient.accept()    
             # Start a new thread and return its identifier
-            serverHandler = Thread(target=serverOperation, args=(connection, event, filename))
-            serverHandler.start()
-            clientesConectados += 1
+            if connection:
+                print("New connection")
+                serverHandler = Thread(target=serverOperation, args=(connection, event, filename))
+                serverHandler.start()
+            #clientesConectados es modificado dentro de cada thread para esperar la confirmacion del cliente
+            #clientesConectados += 1
             #print(clientesConectados, " Clientes conectados")
         else:
             print(clientesConectados, " Clientes conectados")
@@ -100,31 +83,9 @@ def MainServerThread(event,numArchivo,numClientes):
     time.sleep(10)
     socketClient.close()
 
-
-
-
-def MainClientThread(cv, numClientes):
-    # local host IP '127.0.0.1'
-    host = 'localhost'
- 
-    # Define the port on which you want to connect
-    for x in range(1,numClientes +1):
-        s = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
- 
-        # connect to server on local computer
-        s.connect((host,port))
-        cliente = Thread(name=x , target= clientOperation, args=(cv,s,x,numClientes))
-        cliente.start()
-        #cliente.join()
-    #s.close()
-
 if __name__ == '__main__':
     cv = Event()
     numClientes = int(input("Ingrese el numero de clientes: (max 25)\n"))
     numArchivo = int(input("Que archivo desea usar:\n 1. 150 MB \n 2. 250 MB\n"))
     server = Thread(target=MainServerThread, args=(cv,numArchivo,numClientes))
     server.start()
-    client = Thread(target=MainClientThread, args=(cv,numClientes))
-    client.start()
-
-    
