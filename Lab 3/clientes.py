@@ -8,8 +8,8 @@ from _thread import *
 from multiprocessing.connection import wait
 from threading import Event, Thread
 
-port = 12346
-BUFFER_SIZE = 1024 # send 1024 bytes each time step
+port = 12345
+BUFFER_SIZE = 2048 # send 1024 bytes each time step
 
 
 
@@ -17,8 +17,9 @@ BUFFER_SIZE = 1024 # send 1024 bytes each time step
 def clientOperation(event,socket,id,numClientes):
     md5 = hashlib.md5()
     
-    file = open("ArchivosRecibidos/Cliente"+str(id)+"-Prueba"+str(numClientes), "wb")
-
+    file = open("/Users/Gabriel/Documents/Semestre 7/Infracom/Labs/Lab 3/ArchivosRecibidos/Cliente"+str(id)+"-Prueba"+str(numClientes), "wb")
+    socket.send(str(id).encode())
+    print("Cliente", id, "listo" )
     while True:
             # read 1024 bytes from the socket (receive)
             bytes_read = socket.recv(BUFFER_SIZE)

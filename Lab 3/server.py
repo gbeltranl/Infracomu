@@ -7,20 +7,23 @@ import time
 from _thread import *
 from multiprocessing.connection import wait
 from threading import Event, Thread
+import select
 
-port = 12346
-BUFFER_SIZE = 1024 # send 1024 bytes each time step
+
+port = 12345
+BUFFER_SIZE = 2048 # send 1024 bytes each time step
 clientesConectados = 0
 
 def serverOperation(connection, event, filename):
     file = open(filename, "rb")
     md5 = hashlib.md5()
 
-    # Receive ok from client
-    print("suma clientes")
+    confirmation = connection.recv(2048)
+    print( "Cliente ",confirmation.decode(), " listo")
     global clientesConectados
     clientesConectados +=1
     event.wait()
+    print("Inicia envio")
     
     #c.send(calculated_hash.encode())
     while True:
@@ -37,6 +40,7 @@ def serverOperation(connection, event, filename):
     print("File's hash", calculated_hash)
     connection.send('<SEP>'.encode())
     connection.send(calculated_hash.encode())
+    connection.close()
 
 
 def MainServerThread(event,numArchivo,numClientes):
@@ -60,19 +64,23 @@ def MainServerThread(event,numArchivo,numClientes):
  
     # put the socket into listening mode
     socketClient.listen(5)
+    read_list = [socketClient]
     print("Socket escuchando")
  
     global clientesConectados
     while True:
-        print(clientesConectados)
+        #print("Esperando clientes, conectados:",clientesConectados)
         if clientesConectados < numClientes:
-            # establish connection with client
-            connection, addr = socketClient.accept()    
-            # Start a new thread and return its identifier
-            if connection:
-                print("New connection")
-                serverHandler = Thread(target=serverOperation, args=(connection, event, filename))
-                serverHandler.start()
+            readable, writable, errored = select.select(read_list, [], [])
+            time.sleep(0.5)
+            for s in readable:
+                if s is socketClient:
+                    # establish connection with client
+                    connection, addr = socketClient.accept()    
+                    # Start a new thread and return its identifier
+                    read_list.append(connection)
+                    serverHandler = Thread(target=serverOperation, args=(connection, event, filename))
+                    serverHandler.start()
             #clientesConectados es modificado dentro de cada thread para esperar la confirmacion del cliente
             #clientesConectados += 1
             #print(clientesConectados, " Clientes conectados")
